@@ -3,15 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>L'Oréal | Smart Routine &amp; Product Advisor</title>
+    <title>L'Oréal | Smart Routine & Product Advisor</title>
+
     <link
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;500;700&display=swap"
       rel="stylesheet"
     />
+
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
     />
+
     <link rel="stylesheet" href="style.css" />
   </head>
 
@@ -23,6 +26,12 @@
       </header>
 
       <div class="search-section">
+        <input
+          type="text"
+          id="productSearch"
+          placeholder="Search products..."
+        />
+
         <select id="categoryFilter">
           <option value="" selected>All Categories</option>
           <option value="cleanser">Cleansers</option>
@@ -42,28 +51,30 @@
         <div class="placeholder-message">Loading products...</div>
       </div>
 
-      <section class="selected-products">
-        <div class="selected-header-row">
+      <div class="selected-products">
+
+      <div class="selected-header-row">
           <h2>Selected Products</h2>
-          <button id="clearSelectionsBtn" class="clear-btn" type="button">
-            Clear All
-          </button>
+          <button id="clearSelectionsBtn" class="clear-btn">Clear All</button>
         </div>
-        <div id="selectedProductsList" class="selected-products-list">
-          <div class="empty-selected">No products selected yet.</div>
-        </div>
-        <button id="generateRoutine" class="generate-btn" type="button">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
+
+        <div id="selectedProductsList" class="selected-products-list"></div>
+
+        <button id="generateRoutine" class="generate-btn">
           Generate Routine
         </button>
+
+      </div>
       </section>
 
       <section class="chatbox">
         <h2>About Your Routine</h2>
+
         <div id="chatWindow" class="chat-window"></div>
 
         <form id="chatForm" class="chat-form">
           <label for="userInput" class="visually-hidden">Message</label>
+
           <input
             id="userInput"
             name="userInput"
@@ -72,6 +83,7 @@
             autocomplete="off"
             required
           />
+
           <button type="submit" id="sendBtn">
             <i class="fa-solid fa-paper-plane"></i>
             <span class="visually-hidden">Send</span>
@@ -81,6 +93,7 @@
 
       <footer class="site-footer">
         <p>&copy; 2025 L'Oréal. All rights reserved.</p>
+
         <nav>
           <a href="#">Privacy Policy</a>
           <a href="#">Terms of Use</a>

@@ -1,4 +1,5 @@
 const categoryFilter = document.getElementById("categoryFilter");
+const productSearch = document.getElementById("productSearch");
 const productsContainer = document.getElementById("productsContainer");
 const selectedProductsList = document.getElementById("selectedProductsList");
 const clearSelectionsBtn = document.getElementById("clearSelectionsBtn");
@@ -8,7 +9,7 @@ const chatWindow = document.getElementById("chatWindow");
 const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
 
-const WORKER_URL = "https://loreal-chatbot-worker.pram-wardhana12.workers.dev/";
+const WORKER_URL = "https://loreal-chatbot.pram-wardhana12.workers.dev/";
 const STORAGE_KEY = "loreal_selected_products";
 
 let allProducts = [];
@@ -19,8 +20,72 @@ let routineGenerated = false;
 const messages = [
   {
     role: "system",
-    content:
-      "You are a L'Oréal routine builder assistant. Use the selected products and any generated routine context to answer clearly and helpfully. Stay focused on beauty, skincare, haircare, makeup, fragrance, grooming, and routine-related questions. If the user asks something unrelated, politely redirect them back to L'Oréal products or their routine.",
+    content: `
+You are a L'Oréal routine builder assistant. Use the selected products and any generated routine context to answer clearly and helpfully. Stay focused on beauty, skincare, haircare, makeup, fragrance, grooming, and routine-related questions. If the user asks something unrelated, politely redirect them back to L'Oréal products or their routine. You can also search and surf related and relevant real products online. Only include links that you are confident are real and directly usable.
+Do not invent, guess, or rewrite URLs.
+Prefer official L'Oréal or brand product pages when available.
+If you are not sure about a link, do not include it.
+When giving links, output the full raw URL on its own line.
+
+Before the routine, include 1 short positive sentence complimenting the user's product selection. Optionally include one short suggestion sentence if something is missing (like sunscreen or other product).
+
+RULES for the compliment:
+- One sentence only
+- No emojis
+- No markdown
+- Keep it natural and short
+- Do NOT add extra spacing after it
+
+STRICT FORMAT RULES:
+- Do NOT use #, *, markdown, or emojis
+- Do NOT add extra spacing or empty lines
+- Keep everything clean and consistent
+
+FORMAT LOOKS LIKE THIS(ADJUST ACCORDINGLY AND RELEVANTLY):
+
+[One short compliment or suggestion sentence]
+
+Morning Routine (doesn't have to be evening or morning, adjust it accordingly to the product)
+- Cleanser (adjust relevantly doesn't have to be cleanser all the time)
+Product: ...
+When: ...
+Tip: ...
+
+- Moisturizer (adjust relevantly doesn't have to be Moisturizer all the time)
+Product: ...
+When: ...
+Tip: ...
+
+...(add if the user have more products, adjust and order it relevantly)
+
+Evening Routine (doesn't have to be evening or morning, adjust it accordingly to the product)
+- Cleanser (adjust relevantly doesn't have to be cleanser all the time)
+Product: ...
+When: ...
+Tip: ...
+
+- Serum (adjust relevantly doesn't have to be serum all the time)
+Product: ...
+When: ...
+Tip: ...
+
+...(add if the user have more products, adjust and order it relevantly)
+
+RULES:
+- Routine titles must be plain text
+- Each step must start with "- "
+- No numbering like Step 1
+- No extra headings or symbols
+- Keep spacing tight
+- Only output the routine
+
+If the user asks for current products or web results, search the web and return:
+- product name
+- short reason it is relevant
+- one verified live URL
+
+Do not include dead, guessed, or approximate links.
+    `,
   },
 ];
 
@@ -45,19 +110,33 @@ async function loadProducts() {
     const response = await fetch("products.json");
     const data = await response.json();
     return data.products;
-  } catch (error) {
-    productsContainer.innerHTML = `
-      <div class="placeholder-message">Could not load products right now.</div>
-    `;
+  } catch {
+    productsContainer.innerHTML = `<div class="placeholder-message">Could not load products right now.</div>`;
     return [];
   }
 }
 
+function applyFilters() {
+  const category = categoryFilter.value;
+  const query = productSearch.value.toLowerCase();
+
+  filteredProducts = allProducts.filter((product) => {
+    const matchCategory = !category || product.category === category;
+
+    const matchSearch =
+      product.name.toLowerCase().includes(query) ||
+      product.brand.toLowerCase().includes(query) ||
+      product.description.toLowerCase().includes(query);
+
+    return matchCategory && matchSearch;
+  });
+
+  displayProducts(filteredProducts);
+}
+
 function displayProducts(products) {
   if (!products.length) {
-    productsContainer.innerHTML = `
-      <div class="placeholder-message">No products found for this category.</div>
-    `;
+    productsContainer.innerHTML = `<div class="placeholder-message">No products found.</div>`;
     return;
   }
 
@@ -66,29 +145,33 @@ function displayProducts(products) {
       const isSelected = selectedProducts.some(
         (item) => item.name === product.name,
       );
+
       return `
-        <div class="product-card ${isSelected ? "selected" : ""}" data-name="${escapeAttribute(product.name)}">
-          <div class="product-top">
-            <img src="${product.image}" alt="${escapeAttribute(product.name)}">
-            <div class="product-info">
-              <h3>${product.name}</h3>
-              <p class="product-brand">${product.brand}</p>
-              <p class="product-category">${product.category}</p>
-            </div>
-          </div>
-          <div class="product-actions">
-            <button class="select-btn" type="button" data-action="toggle-select" data-name="${escapeAttribute(product.name)}">
-              ${isSelected ? "Unselect" : "Select"}
-            </button>
-            <button class="desc-btn" type="button" data-action="toggle-description" data-name="${escapeAttribute(product.name)}">
-              Description
-            </button>
-          </div>
-          <div class="product-description" id="desc-${slugify(product.name)}">
-            ${product.description || "No description available."}
+      <div class="product-card ${isSelected ? "selected" : ""}" data-name="${escapeAttribute(product.name)}">
+        <div class="product-top">
+          <img src="${product.image}" alt="${escapeAttribute(product.name)}">
+          <div class="product-info">
+            <h3>${product.name}</h3>
+            <p class="product-brand">${product.brand}</p>
+            <p class="product-category">${product.category}</p>
           </div>
         </div>
-      `;
+
+        <div class="product-actions">
+          <button class="select-btn" data-action="toggle-select" data-name="${escapeAttribute(product.name)}">
+            ${isSelected ? "Unselect" : "Select"}
+          </button>
+
+          <button class="desc-btn" data-action="toggle-description" data-name="${escapeAttribute(product.name)}">
+            Description
+          </button>
+        </div>
+
+        <div class="product-description" id="desc-${slugify(product.name)}">
+          ${product.description || "No description available."}
+        </div>
+      </div>
+    `;
     })
     .join("");
 }
@@ -102,13 +185,13 @@ function renderSelectedProducts() {
   selectedProductsList.innerHTML = selectedProducts
     .map(
       (product) => `
-        <div class="selected-chip">
-          <span>${product.name}</span>
-          <button class="remove-chip-btn" type="button" data-remove-name="${escapeAttribute(product.name)}">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      `,
+    <div class="selected-chip">
+      <span>${product.name}</span>
+      <button class="remove-chip-btn" data-remove-name="${escapeAttribute(product.name)}">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  `,
     )
     .join("");
 }
@@ -119,26 +202,16 @@ function saveSelectedProducts() {
 
 function loadSelectedProducts() {
   const saved = localStorage.getItem(STORAGE_KEY);
-
-  if (!saved) return [];
-
-  try {
-    return JSON.parse(saved);
-  } catch (error) {
-    return [];
-  }
+  return saved ? JSON.parse(saved) : [];
 }
 
 function toggleProductSelection(productName) {
-  const product = allProducts.find((item) => item.name === productName);
-
+  const product = allProducts.find((p) => p.name === productName);
   if (!product) return;
 
-  const existingIndex = selectedProducts.findIndex(
-    (item) => item.name === productName,
-  );
+  const index = selectedProducts.findIndex((p) => p.name === productName);
 
-  if (existingIndex >= 0) selectedProducts.splice(existingIndex, 1);
+  if (index >= 0) selectedProducts.splice(index, 1);
   else selectedProducts.push(product);
 
   saveSelectedProducts();
@@ -146,10 +219,8 @@ function toggleProductSelection(productName) {
   renderSelectedProducts();
 }
 
-function removeSelectedProduct(productName) {
-  selectedProducts = selectedProducts.filter(
-    (item) => item.name !== productName,
-  );
+function removeSelectedProduct(name) {
+  selectedProducts = selectedProducts.filter((p) => p.name !== name);
   saveSelectedProducts();
   displayProducts(filteredProducts);
   renderSelectedProducts();
@@ -162,129 +233,92 @@ function clearAllSelections() {
   renderSelectedProducts();
 }
 
-function toggleDescription(productName) {
-  const descriptionEl = document.getElementById(`desc-${slugify(productName)}`);
-
-  if (!descriptionEl) return;
-
-  descriptionEl.classList.toggle("open");
+function toggleDescription(name) {
+  const el = document.getElementById(`desc-${slugify(name)}`);
+  if (el) el.classList.toggle("open");
 }
 
 function addChatBubble(type, text) {
   const bubble = document.createElement("div");
   bubble.className = `chat-bubble ${type}`;
-  bubble.textContent = text;
+
+  if (type === "user" || type === "error") {
+    bubble.textContent = text;
+  } else {
+    bubble.innerHTML = linkifyText(text);
+  }
+
   chatWindow.appendChild(bubble);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-categoryFilter.addEventListener("change", (e) => {
-  const selectedCategory = e.target.value;
-
-  if (!selectedCategory) filteredProducts = [...allProducts];
-  else
-    filteredProducts = allProducts.filter(
-      (product) => product.category === selectedCategory,
+function linkifyText(text) {
+  let formatted = text
+    .replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
+    )
+    .replace(
+      /(https?:\/\/[^\s)]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>',
     );
 
-  displayProducts(filteredProducts);
-});
+  formatted = formatted.replace(/\n/g, "<br>");
+  return formatted;
+}
+
+categoryFilter.addEventListener("change", applyFilters);
+productSearch.addEventListener("input", applyFilters);
 
 productsContainer.addEventListener("click", (e) => {
-  const toggleSelectBtn = e.target.closest('[data-action="toggle-select"]');
-  const toggleDescriptionBtn = e.target.closest(
-    '[data-action="toggle-description"]',
-  );
+  const selectBtn = e.target.closest('[data-action="toggle-select"]');
+  const descBtn = e.target.closest('[data-action="toggle-description"]');
 
-  if (toggleSelectBtn) {
-    toggleProductSelection(toggleSelectBtn.dataset.name);
-    return;
-  }
-
-  if (toggleDescriptionBtn) {
-    toggleDescription(toggleDescriptionBtn.dataset.name);
-  }
+  if (selectBtn) toggleProductSelection(selectBtn.dataset.name);
+  if (descBtn) toggleDescription(descBtn.dataset.name);
 });
 
 selectedProductsList.addEventListener("click", (e) => {
-  const removeBtn = e.target.closest("[data-remove-name]");
-
-  if (!removeBtn) return;
-
-  removeSelectedProduct(removeBtn.dataset.removeName);
+  const btn = e.target.closest("[data-remove-name]");
+  if (btn) removeSelectedProduct(btn.dataset.removeName);
 });
 
-clearSelectionsBtn.addEventListener("click", () => {
-  clearAllSelections();
-});
+clearSelectionsBtn.addEventListener("click", clearAllSelections);
 
 generateRoutineBtn.addEventListener("click", async () => {
   if (!selectedProducts.length) {
-    addChatBubble(
-      "error",
-      "Please select at least one product before generating a routine.",
-    );
+    addChatBubble("error", "Select at least one product.");
     return;
   }
 
   generateRoutineBtn.disabled = true;
 
-  const selectedProductData = selectedProducts.map((product) => ({
-    name: product.name,
-    brand: product.brand,
-    category: product.category,
-    description: product.description,
-  }));
-
   const routinePrompt = `
-Create a clear personalized beauty routine using only these selected L'Oréal-related products.
-For each product, explain when to use it, what step it belongs to, and give a short practical tip.
-Keep the routine easy to follow and organized by order of use.
-
+Create a routine using ONLY the selected products.
 Selected products:
-${JSON.stringify(selectedProductData, null, 2)}
-  `.trim();
+${JSON.stringify(selectedProducts, null, 2)}
+`;
 
-  messages.push({
-    role: "user",
-    content: routinePrompt,
-  });
+  messages.push({ role: "user", content: routinePrompt });
 
-  addChatBubble("user", "Generate a routine using my selected products.");
+  addChatBubble("user", "Generate my routine");
 
   try {
     const res = await fetch(WORKER_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messages: messages,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
     });
 
     const data = await res.json();
-
-    if (!res.ok) {
-      addChatBubble(
-        "error",
-        data.error || "Could not generate a routine right now.",
-      );
-      generateRoutineBtn.disabled = false;
-      return;
-    }
-
     const reply = data.choices[0].message.content;
 
-    messages.push({
-      role: "assistant",
-      content: reply,
-    });
-
+    messages.push({ role: "assistant", content: reply });
     addChatBubble("ai", reply);
+
     routineGenerated = true;
-  } catch (error) {
-    addChatBubble("error", "There was a problem generating your routine.");
+  } catch {
+    addChatBubble("error", "Failed to generate routine.");
   }
 
   generateRoutineBtn.disabled = false;
@@ -293,60 +327,34 @@ ${JSON.stringify(selectedProductData, null, 2)}
 chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const userText = userInput.value.trim();
-
-  if (!userText) return;
+  const text = userInput.value.trim();
+  if (!text) return;
 
   if (!routineGenerated) {
-    addChatBubble(
-      "error",
-      "Generate a routine first, then ask follow-up questions about it.",
-    );
-    userInput.value = "";
+    addChatBubble("error", "Generate a routine first.");
     return;
   }
 
-  addChatBubble("user", userText);
+  addChatBubble("user", text);
   userInput.value = "";
   sendBtn.disabled = true;
 
-  messages.push({
-    role: "user",
-    content: userText,
-  });
+  messages.push({ role: "user", content: text });
 
   try {
     const res = await fetch(WORKER_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messages: messages,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
     });
 
     const data = await res.json();
-
-    if (!res.ok) {
-      addChatBubble(
-        "error",
-        data.error || "Could not answer that question right now.",
-      );
-      sendBtn.disabled = false;
-      return;
-    }
-
     const reply = data.choices[0].message.content;
 
-    messages.push({
-      role: "assistant",
-      content: reply,
-    });
-
+    messages.push({ role: "assistant", content: reply });
     addChatBubble("ai", reply);
-  } catch (error) {
-    addChatBubble("error", "There was a problem continuing the chat.");
+  } catch {
+    addChatBubble("error", "Chat failed.");
   }
 
   sendBtn.disabled = false;
